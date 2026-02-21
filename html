@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Golden Coin Clicker - Infinity</title>
+    <style>
+        /* CSS - HET DESIGN */
+        :root {
+            --gold: #ffd700;
+            --dark-gold: #b8860b;
+            --bg-yellow: #ffeb3b;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle, var(--bg-yellow) 0%, #fbc02d 100%);
+            overflow: hidden;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        /* Draaiende stralen op de achtergrond */
+        #sunburst {
+            position: absolute;
+            width: 200vw;
+            height: 200vw;
+            top: -50vw;
+            left: -50vw;
+            background: repeating-conic-gradient(
+                from 0deg,
+                rgba(255, 255, 255, 0.2) 0deg 15deg,
+                transparent 15deg 30deg
+            );
+            animation: rotateSun 30s linear infinite;
+            z-index: 0;
+        }
+
+        @keyframes rotateSun {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Game Area */
+        #main-game {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1;
+        }
+
+        #score-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #balance {
+            font-size: 4rem;
+            font-weight: 900;
+            color: #333;
+            text-shadow: 2px 2px 0px rgba(255,255,255,0.5);
+            margin: 0;
+        }
+
+        #cps-display {
+            font-size: 1.2rem;
+            color: #555;
+        }
+
+        /* De Munt */
+        #coin {
+            width: 280px;
+            height: 280px;
+            background: linear-gradient(135deg, var(--gold), var(--dark-gold));
+            border-radius: 50%;
+            border: 10px solid #fff;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2), inset 0 0 30px rgba(255,255,255,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 50px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.05s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        #coin:active {
+            transform: scale(0.92);
+        }
+
+        /* Sidebar voor Upgrades */
+        #sidebar {
+            width: 300px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(15px);
+            border-left: 3px solid rgba(255, 255, 255, 0.3);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 2;
+            box-shadow: -5px 0 15px rgba(0,0,0,0.1);
+        }
+
+        .upgrade-card {
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 15px;
+            border-radius: 12px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .upgrade-card.can-afford {
+            background: #2e7d32;
+            border-color: #4caf50;
+            box-shadow: 0 0 15px rgba(76, 175, 80, 0.4);
+        }
+
+        .upgrade-card:hover {
+            transform: translateX(-5px);
+        }
+
+        .upgrade-card h3 { margin: 0; font-size: 1.1rem; }
+        .upgrade-card p { margin: 5px 0; font-size: 0.9rem; opacity: 0.8; }
+
+        /* Floating Text Effect */
+        .float-text {
+            position: absolute;
+            color: #333;
+            font-weight: 900;
+            font-size: 28px;
+            pointer-events: none;
+            animation: floatUp 0.7s ease-out forwards;
+            z-index: 10;
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-120px) scale(1.5); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sunburst"></div>
+
+    <div id="main-game">
+        <div id="score-container">
+            <h1 id="balance">€0</h1>
+            <div id="cps-display">per second: €0</div>
+        </div>
+        <div id="coin">€</div>
+    </div>
+
+    <div id="sidebar">
+        <h2 style="color: #333;">Upgrades</h2>
+        
+        <div id="upg-click" class="upgrade-card">
+            <h3>Stronger Finger</h3>
+            <p id="click-lv">Level: 0</p>
+            <p id="click-cost">Cost: €10</p>
+        </div>
+
+        <div id="upg-auto" class="upgrade-card">
+            <h3>Gold Miner</h3>
+            <p id="auto-lv">Level: 0</p>
+            <p id="auto-cost">Cost: €50</p>
+        </div>
+    </div>
+
+    <script>
+        /* JAVASCRIPT - DE LOGICA */
+
+        // 1. Initial State
+        let balance = 0;
+        let clickPower = 1;
+        let autoRate = 0;
+        const multiplier = 1.15;
+
+        let upgrades = {
+            click: { level: 0, cost: 10, power: 1 },
+            auto: { level: 0, cost: 50, power: 2 }
+        };
+
+        // 2. DOM Elements
+        const coinBtn = document.getElementById('coin');
+        const balanceTxt = document.getElementById('balance');
+        const cpsTxt = document.getElementById('cps-display');
+
+        // 3. Main Click Handler
+        function handleInteraction(x, y) {
+            balance += clickPower;
+            createFloatingText(x, y, `+€${clickPower}`);
+            updateUI();
+        }
+
+        // Support for both Mouse and Touch
+        coinBtn.addEventListener('mousedown', (e) => handleInteraction(e.clientX, e.clientY));
+        coinBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            handleInteraction(touch.clientX, touch.clientY);
+        });
+
+        // 4. Upgrade Logic
+        document.getElementById('upg-click').onclick = () => {
+            if (balance >= upgrades.click.cost) {
+                balance -= upgrades.click.cost;
+                upgrades.click.level++;
+                clickPower += upgrades.click.power;
+                upgrades.click.cost = Math.floor(10 * Math.pow(multiplier, upgrades.click.level));
+                updateUI();
+            }
+        };
+
+        document.getElementById('upg-auto').onclick = () => {
+            if (balance >= upgrades.auto.cost) {
+                balance -= upgrades.auto.cost;
+                upgrades.auto.level++;
+                autoRate += upgrades.auto.power;
+                upgrades.auto.cost = Math.floor(50 * Math.pow(multiplier, upgrades.auto.level));
+                updateUI();
+            }
+        };
+
+        // 5. Game Loops
+        setInterval(() => {
+            balance += autoRate;
+            updateUI();
+        }, 1000);
+
+        // 6. Helper Functions
+        function formatNumber(n) {
+            if (n >= 1000000) return (n / 1000000).toFixed(2) + "M";
+            if (n >= 1000) return (n / 1000).toFixed(1) + "k";
+            return Math.floor(n).toLocaleString('nl-NL');
+        }
+
+        function updateUI() {
+            balanceTxt.innerText = `€${formatNumber(balance)}`;
+            cpsTxt.innerText = `per second: €${formatNumber(autoRate)}`;
+
+            // Update Click Upgrade Card
+            document.getElementById('click-lv').innerText = `Level: ${upgrades.click.level}`;
+            document.getElementById('click-cost').innerText = `Cost: €${formatNumber(upgrades.click.cost)}`;
+            document.getElementById('upg-click').classList.toggle('can-afford', balance >= upgrades.click.cost);
+
+            // Update Auto Upgrade Card
+            document.getElementById('auto-lv').innerText = `Level: ${upgrades.auto.level}`;
+            document.getElementById('auto-cost').innerText = `Cost: €${formatNumber(upgrades.auto.cost)}`;
+            document.getElementById('upg-auto').classList.toggle('can-afford', balance >= upgrades.auto.cost);
+        }
+
+        function createFloatingText(x, y, text) {
+            const el = document.createElement('div');
+            el.className = 'float-text';
+            el.innerText = text;
+            el.style.left = `${x - 20}px`;
+            el.style.top = `${y - 20}px`;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 700);
+        }
+
+        // Initialize UI
+        updateUI();
+    </script>
+</body>
+</html>
